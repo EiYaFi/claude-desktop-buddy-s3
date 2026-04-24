@@ -1,5 +1,9 @@
 # claude-desktop-buddy
 
+> **Fork 说明 / This fork**: 本 fork 在原版基础上加入了 **M5StickS3 固件移植** 和 **Claude Code 桥接**。
+> 一条命令在新电脑上装好：见 **[SETUP.md](SETUP.md)**（中文端到端指引）。
+> Adds M5StickS3 firmware port and a Claude Code bridge on top of upstream.
+
 Claude for macOS and Windows can connect Claude Cowork and Claude Code to
 maker devices over BLE, so developers and makers can build hardware that
 displays permission prompts, recent messages, and other interactions. We've

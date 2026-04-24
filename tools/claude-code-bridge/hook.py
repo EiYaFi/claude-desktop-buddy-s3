@@ -118,7 +118,7 @@ def handle_pretooluse(hook_input: dict, sock_path: Path) -> int:
             },
         }
     else:
-        # timeout / unknown → let Claude prompt the user normally
+        # timeout / offline / unknown → let Claude prompt the user normally
         return 0
 
     print(json.dumps(out))

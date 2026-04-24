@@ -308,8 +308,13 @@ class Bridge:
     async def _on_prompt(self, req: dict) -> dict:
         """
         Block until the device answers. Returns {ok, decision} where decision
-        is "once" | "deny" | "timeout".
+        is "once" | "deny" | "timeout" | "offline".
         """
+        # Device offline → fall through immediately so Claude Code can take over
+        # with its own permission UI, instead of the hook waiting PROMPT_TIMEOUT.
+        if not self.client or not self.client.is_connected:
+            return {"ok": True, "decision": "offline"}
+
         pid = req.get("id") or uuid.uuid4().hex[:12]
         tool = req.get("tool", "?")
         hint = truncate(req.get("hint", ""), 80)

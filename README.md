@@ -1,103 +1,81 @@
 # claude-desktop-buddy-S3
 
-> **Fork 说明 / This fork**: 本 fork 在原版基础上加入了 **M5StickS3 固件移植** 和 **Claude Code 桥接**。
-> 一条命令在新电脑上装好：见 **[SETUP.md](SETUP.md)**（中文端到端指引）。
-> Adds M5StickS3 firmware port and a Claude Code bridge on top of upstream.
+**中文** · [English](README.en.md)
 
-Claude for macOS and Windows can connect Claude Cowork and Claude Code to
-maker devices over BLE, so developers and makers can build hardware that
-displays permission prompts, recent messages, and other interactions. We've
-been impressed by the creativity of the maker community around Claude -
-providing a lightweight, opt-in API is our way of making it easier to build
-fun little hardware devices that integrate with Claude.
+> **关于这个 fork**：在 [上游 anthropics/claude-desktop-buddy](https://github.com/anthropics/claude-desktop-buddy) 的基础上加了 **M5StickS3 固件移植** 和 **Claude Code 桥接**。
+> 一条命令装好新电脑：见 **[SETUP.md](SETUP.md)**（中文端到端指引）。
 
-> **Building your own device?** You don't need any of the code here. See
-> **[REFERENCE.md](REFERENCE.md)** for the wire protocol: Nordic UART
-> Service UUIDs, JSON schemas, and the folder push transport.
+Claude 桌面版（macOS 和 Windows）可以让 Claude Cowork 和 Claude Code 通过 BLE 连接 maker 设备，开发者因此能做出带权限提示、消息滚动等交互的硬件小玩具。我们一直被 maker 社区围绕 Claude 做的各种创作打动——提供一套轻量、可选接入的 API，是我们帮大家更容易做出好玩硬件的方式。
 
-As an example, we built a desk pet on ESP32 that lives off permission
-approvals and interaction with Claude. It sleeps when nothing's happening,
-wakes when sessions start, gets visibly impatient when an approval prompt is
-waiting, and lets you approve or deny right from the device.
+> **想自己做设备？** 你不需要这里的任何代码。通讯协议（Nordic UART Service UUID、JSON schema、文件夹推送传输）见 **[REFERENCE.md](REFERENCE.md)**。
+
+作为一个示例，我们在 ESP32 上做了一只桌面宠物——靠你批命令、和 Claude 互动为生。没事就睡觉，会话开始就醒，审批弹出时明显焦急，直接在设备上批或否。
 
 <img width="360" height="480" alt="img_v3_02112_4055a15f-6392-4d1c-873e-c282e2f003eg" src="https://github.com/user-attachments/assets/5e67ca22-0936-4aa6-88b1-797a67c31f6a" />
 
 
-## Hardware
+## 硬件
 
-The firmware targets ESP32 with the Arduino framework. As written, it
-depends on the M5StickCPlus library for its display, IMU, and button
-drivers—so you'll need that board, or a fork that swaps those drivers for
-your own pin layout.
+固件基于 Arduino 框架跑在 ESP32 上。原版代码依赖 M5StickCPlus 库处理屏幕、IMU、按键——所以你要么买这块板子，要么 fork 一份替换成你自己板子的驱动和引脚。
 
-## Flashing
+本 fork 另外支持 **M5StickS3**（ESP32-S3-PICO-1-N8R2），关键差异见 [M5StickS3.md](M5StickS3.md)。
 
-Install
-[PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/),
-then:
+## 烧录
+
+装好
+[PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/)
+，然后：
 
 ```bash
 pio run -t upload
 ```
 
-If you're starting from a previously-flashed device, wipe it first:
+如果设备上有旧固件，先擦干净再烧：
 
 ```bash
 pio run -t erase && pio run -t upload
 ```
 
-Once running, you can also wipe everything from the device itself: **hold A
-→ settings → reset → factory reset → tap twice**.
+跑起来之后也可以从设备上把所有数据擦掉：**长按 A → settings → reset → factory reset → 点两下**。
 
-## Pairing
+## 配对
 
-To pair your device with Claude, first enable developer mode (**Help →
-Troubleshooting → Enable Developer Mode**). Then, open the Hardware Buddy
-window in **Developer → Open Hardware Buddy…**, click **Connect**, and pick
-your device from the list. macOS will prompt for Bluetooth permission on
-first connect; grant it.
+先在 Claude 桌面版里开启**开发者模式**（**Help → Troubleshooting → Enable Developer Mode**）。然后 **Developer → Open Hardware Buddy…** 打开硬件 buddy 窗口，点 **Connect**，列表里选你的设备。第一次连接 macOS 会弹蓝牙权限请求，同意即可。
 
 <p align="center">
-  <img src="docs/menu.png" alt="Developer → Open Hardware Buddy… menu item" width="420">
-  <img src="docs/hardware-buddy-window.png" alt="Hardware Buddy window with Connect button and folder drop target" width="420">
+  <img src="docs/menu.png" alt="Developer → Open Hardware Buddy… 菜单项" width="420">
+  <img src="docs/hardware-buddy-window.png" alt="Hardware Buddy 窗口，含 Connect 按钮和文件夹投放区" width="420">
 </p>
 
-Once paired, the bridge auto-reconnects whenever both sides are awake.
+配对一次后，只要两边醒着，桥接会自动重连。
 
-If discovery isn't finding the stick:
+扫不到设备时：
+- 确认设备醒着（按任意键）
+- 检查设备 settings 菜单 → bluetooth 是开的
 
-- Make sure it's awake (any button press)
-- Check the stick's settings menu → bluetooth is on
+## 按键
 
-## Controls
+|                         | 常规                  | 宠物        | 信息         | 审批           |
+| ----------------------- | -------------------- | ----------- | ----------- | ------------- |
+| **A**（正面）            | 下一页               | 下一页       | 下一页       | **批准**       |
+| **B**（右侧）            | 滚动会话记录          | 下一页       | 下一页       | **拒绝**       |
+| **长按 A**              | 菜单                 | 菜单         | 菜单         | 菜单           |
+| **电源键**（左侧，短按）  | 屏幕开关              |             |             |               |
+| **电源键**（左侧，~6s）  | 彻底关机              |             |             |               |
+| **摇动**                | 晕头转向              |             |             | —             |
+| **脸朝下**              | 午睡（回能量）        |             |             |               |
 
-|                         | Normal               | Pet         | Info        | Approval    |
-| ----------------------- | -------------------- | ----------- | ----------- | ----------- |
-| **A** (front)           | next screen          | next screen | next screen | **approve** |
-| **B** (right)           | scroll transcript    | next page   | next page   | **deny**    |
-| **Hold A**              | menu                 | menu        | menu        | menu        |
-| **Power** (left, short) | toggle screen off    |             |             |             |
-| **Power** (left, ~6s)   | hard power off       |             |             |             |
-| **Shake**               | dizzy                |             |             | —           |
-| **Face-down**           | nap (energy refills) |             |             |             |
+30 秒无操作屏幕自动关（审批提示在时保持亮）。任意键唤醒。
 
-The screen auto-powers-off after 30s of no interaction (kept on while an
-approval prompt is up). Any button press wakes it.
+## ASCII 宠物
 
-## ASCII pets
+18 种宠物，每种 7 套动画（sleep、idle、busy、attention、celebrate、dizzy、heart）。菜单 → "next pet" 循环切换，选择存 NVS。
 
-Eighteen pets, each with seven animations (sleep, idle, busy, attention,
-celebrate, dizzy, heart). Menu → "next pet" cycles them with a counter.
-Choice persists to NVS.
+## GIF 宠物
 
-## GIF pets
+想用自定义 GIF 人物代替 ASCII 宠物？把 character pack 目录拖到 Hardware Buddy 窗口的投放区，桌面版走 BLE 推给设备，设备实时切到 GIF 模式。**Settings → delete char** 退回 ASCII 模式。
 
-If you want a custom GIF character instead of an ASCII buddy, drag a
-character pack folder onto the drop target in the Hardware Buddy window. The
-app streams it over BLE and the stick switches to GIF mode live. **Settings
-→ delete char** reverts to ASCII mode.
-
-A character pack is a folder with `manifest.json` and 96px-wide GIFs:
+一个 character pack 是一个目录，里面有 `manifest.json` 和 96 像素宽的 GIF：
 
 ```json
 {
@@ -121,55 +99,44 @@ A character pack is a folder with `manifest.json` and 96px-wide GIFs:
 }
 ```
 
-State values can be a single filename or an array. Arrays rotate: each
-loop-end advances to the next GIF, useful for an idle activity carousel so
-the home screen doesn't loop one clip forever.
+状态值可以是单个文件名，也可以是数组。数组会轮播：每播完一次切下一个 GIF，适合做 idle 活动轮播，避免主屏一直循环同一段。
 
-GIFs are 96px wide; height up to ~140px stays on a 135×240 portrait screen.
-Crop tight to the character — transparent margins waste screen and shrink
-the sprite. `tools/prep_character.py` handles the resize: feed it source
-GIFs at any sizes and it produces a 96px-wide set where the character is the
-same scale in every state.
+GIF 宽 96px；高到 ~140px 都能在 135×240 竖屏里放下。贴紧角色裁——透明边缘浪费屏幕，也让 sprite 看起来偏小。`tools/prep_character.py` 处理缩放：给它任意大小的 GIF，它产出 96px 宽、角色尺寸在各个状态下一致的输出。
 
-The whole folder must fit under 1.8MB —
-`gifsicle --lossy=80 -O3 --colors 64` typically cuts 40–60%.
+整个目录得控制在 1.8MB 以下——`gifsicle --lossy=80 -O3 --colors 64` 通常能砍 40–60%。
 
-See `characters/bufo/` for a working example.
+工作样例见 `characters/bufo/`。
 
-If you're iterating on a character and would rather skip the BLE round-trip,
-`tools/flash_character.py characters/bufo` stages it into `data/` and runs
-`pio run -t uploadfs` directly over USB.
+如果你在频繁调人物，不想走 BLE 来回推，`tools/flash_character.py characters/bufo` 直接把它塞到 `data/` 里并走 USB 跑 `pio run -t uploadfs`。
 
-## The seven states
+## 七种状态
 
-| State       | Trigger                     | Feel                        |
-| ----------- | --------------------------- | --------------------------- |
-| `sleep`     | bridge not connected        | eyes closed, slow breathing |
-| `idle`      | connected, nothing urgent   | blinking, looking around    |
-| `busy`      | sessions actively running   | sweating, working           |
-| `attention` | approval pending            | alert, **LED blinks**       |
-| `celebrate` | level up (every 50K tokens) | confetti, bouncing          |
-| `dizzy`     | you shook the stick         | spiral eyes, wobbling       |
-| `heart`     | approved in under 5s        | floating hearts             |
+| 状态        | 触发条件                  | 观感                        |
+| ----------- | ------------------------ | --------------------------- |
+| `sleep`     | 桥接未连接                | 闭眼、慢呼吸                 |
+| `idle`      | 已连接，没啥要紧事        | 眨眼、东张西望               |
+| `busy`      | 会话正在跑                | 出汗、干活                   |
+| `attention` | 有审批等处理              | 警觉、**LED 闪烁**           |
+| `celebrate` | 升级（每 50K tokens）     | 撒花、蹦跳                   |
+| `dizzy`     | 你摇它                   | 眼睛转圈、晃来晃去            |
+| `heart`     | 5 秒内批准                | 飘心                         |
 
-## Project layout
+## 项目结构
 
 ```
 src/
-  main.cpp       — loop, state machine, UI screens
-  buddy.cpp      — ASCII species dispatch + render helpers
-  buddies/       — one file per species, seven anim functions each
-  ble_bridge.cpp — Nordic UART service, line-buffered TX/RX
-  character.cpp  — GIF decode + render
-  data.h         — wire protocol, JSON parse
-  xfer.h         — folder push receiver
-  stats.h        — NVS-backed stats, settings, owner, species choice
-characters/      — example GIF character packs
-tools/           — generators and converters
+  main.cpp       — 主循环、状态机、UI 屏
+  buddy.cpp      — ASCII 宠物种类分发 + 渲染辅助
+  buddies/       — 一个物种一个文件，各含 7 个动画函数
+  ble_bridge.cpp — Nordic UART service，按行缓冲的 TX/RX
+  character.cpp  — GIF 解码 + 渲染
+  data.h         — 通讯协议、JSON 解析
+  xfer.h         — 文件夹推送接收器
+  stats.h        — NVS 持久化的统计、设置、主人、物种选择
+characters/      — GIF 人物样例包
+tools/           — 生成器和转换器；本 fork 另含 claude-code-bridge/
 ```
 
-## Availability
+## 可用性
 
-The BLE API is only available when the desktop apps are in developer mode
-(**Help → Troubleshooting → Enable Developer Mode**). It's intended for
-makers and developers and isn't an officially supported product feature.
+BLE API 只在桌面版开启**开发者模式**（**Help → Troubleshooting → Enable Developer Mode**）时可用。这是给 maker 和开发者的，不是官方支持的产品特性。

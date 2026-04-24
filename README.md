@@ -1,4 +1,4 @@
-# claude-desktop-buddy
+# claude-desktop-buddy-S3
 
 > **Fork 说明 / This fork**: 本 fork 在原版基础上加入了 **M5StickS3 固件移植** 和 **Claude Code 桥接**。
 > 一条命令在新电脑上装好：见 **[SETUP.md](SETUP.md)**（中文端到端指引）。
@@ -20,9 +20,8 @@ approvals and interaction with Claude. It sleeps when nothing's happening,
 wakes when sessions start, gets visibly impatient when an approval prompt is
 waiting, and lets you approve or deny right from the device.
 
-<p align="center">
-  <img src="docs/device.jpg" alt="M5StickC Plus running the buddy firmware" width="500">
-</p>
+<img width="360" height="480" alt="img_v3_02112_4055a15f-6392-4d1c-873e-c282e2f003eg" src="https://github.com/user-attachments/assets/5e67ca22-0936-4aa6-88b1-797a67c31f6a" />
+
 
 ## Hardware
 

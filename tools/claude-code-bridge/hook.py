@@ -98,18 +98,25 @@ def handle_pretooluse(hook_input: dict, sock_path: Path) -> int:
         return 0
 
     decision = (resp or {}).get("decision")
+    short_hint = (hint or tool_name)[:80]
     if decision == "once":
-        out = {"hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "allow",
-            "permissionDecisionReason": "approved on device",
-        }}
+        out = {
+            "systemMessage": f"✓ S3 approved: {tool_name} — {short_hint}",
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "allow",
+                "permissionDecisionReason": "approved on device",
+            },
+        }
     elif decision == "deny":
-        out = {"hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": "denied on device",
-        }}
+        out = {
+            "systemMessage": f"✗ S3 denied: {tool_name} — {short_hint}",
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": "denied on device",
+            },
+        }
     else:
         # timeout / unknown → let Claude prompt the user normally
         return 0

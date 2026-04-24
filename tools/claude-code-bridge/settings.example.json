@@ -1,0 +1,53 @@
+{
+  "_comment_": "Drop these into ~/.claude/settings.json (merge with existing hooks). Replace the absolute path to hook.py with wherever you checked out this repo.",
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/ABSOLUTE/PATH/TO/claude-desktop-buddy/tools/claude-code-bridge/hook.py --gate",
+            "timeout": 90
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/ABSOLUTE/PATH/TO/claude-desktop-buddy/tools/claude-code-bridge/hook.py" }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/ABSOLUTE/PATH/TO/claude-desktop-buddy/tools/claude-code-bridge/hook.py" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/ABSOLUTE/PATH/TO/claude-desktop-buddy/tools/claude-code-bridge/hook.py" }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/ABSOLUTE/PATH/TO/claude-desktop-buddy/tools/claude-code-bridge/hook.py" }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/ABSOLUTE/PATH/TO/claude-desktop-buddy/tools/claude-code-bridge/hook.py" }
+        ]
+      }
+    ]
+  }
+}

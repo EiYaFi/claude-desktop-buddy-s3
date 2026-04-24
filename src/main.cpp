@@ -1,11 +1,41 @@
-#include <M5StickCPlus.h>
+#include <M5Unified.h>
 #include <LittleFS.h>
 #include <stdarg.h>
+#include <time.h>
+#include <sys/time.h>
+
+// --- M5StickCPlus → M5Unified compat shims ---
+// M5Unified dropped the old AXP192/RTC structs. Keep the old type names so
+// existing code compiles; back them with ESP-internal RTC via time.h.
+struct RTC_TimeTypeDef { uint8_t Hours, Minutes, Seconds; };
+struct RTC_DateTypeDef { uint8_t WeekDay, Month, Date; uint16_t Year; };
+
+static inline void _rtcShimReadTime(RTC_TimeTypeDef* tm) {
+  time_t now = time(nullptr);
+  struct tm lt; localtime_r(&now, &lt);
+  tm->Hours = lt.tm_hour; tm->Minutes = lt.tm_min; tm->Seconds = lt.tm_sec;
+}
+static inline void _rtcShimReadDate(RTC_DateTypeDef* dt) {
+  time_t now = time(nullptr);
+  struct tm lt; localtime_r(&now, &lt);
+  dt->WeekDay = lt.tm_wday; dt->Month = lt.tm_mon + 1;
+  dt->Date = lt.tm_mday; dt->Year = lt.tm_year + 1900;
+}
+static inline void _rtcShimWrite(const RTC_TimeTypeDef& tm, const RTC_DateTypeDef& dt) {
+  struct tm lt = {};
+  lt.tm_hour = tm.Hours; lt.tm_min = tm.Minutes; lt.tm_sec = tm.Seconds;
+  lt.tm_wday = dt.WeekDay; lt.tm_mon = dt.Month - 1;
+  lt.tm_mday = dt.Date; lt.tm_year = (int)dt.Year - 1900;
+  time_t t = mktime(&lt);
+  struct timeval tv = { t, 0 };
+  settimeofday(&tv, nullptr);
+}
+
 #include "ble_bridge.h"
 #include "data.h"
 #include "buddy.h"
 
-TFT_eSprite spr = TFT_eSprite(&M5.Lcd);
+M5Canvas spr = M5Canvas(&M5.Lcd);
 
 // Advertise as "Claude-XXXX" (last two BT MAC bytes) so multiple sticks
 // in one room are distinguishable in the desktop picker. Name persists in
@@ -23,7 +53,13 @@ static void startBt() {
 const int W = 135, H = 240;
 const int CX = W / 2;
 const int CY_BASE = 120;
-const int LED_PIN = 10;          // red LED, active-low
+#if CONFIG_IDF_TARGET_ESP32S3
+// M5StickS3 has no user-controllable red LED. GPIO19/20 on ESP32-S3 are the
+// native USB D-/D+ lines — driving them kills USB. Use -1 as a sentinel.
+const int LED_PIN = -1;
+#else
+const int LED_PIN = 10;          // M5StickC Plus red LED, active-low
+#endif
 
 // Colors used across multiple UI surfaces
 const uint16_t HOT   = 0xFA20;   // red-orange: warnings, impatience, deny
@@ -94,12 +130,13 @@ static bool isFaceDown() {
   return az < -0.7f && fabsf(ax) < 0.4f && fabsf(ay) < 0.4f;
 }
 
-static void applyBrightness() { M5.Axp.ScreenBreath(20 + brightLevel * 20); }
+// Old ScreenBreath took 0..100; M5.Display.setBrightness takes 0..255.
+static void applyBrightness() { M5.Display.setBrightness(51 + brightLevel * 51); }
 
 static void wake() {
   lastInteractMs = millis();
   if (screenOff) {
-    M5.Axp.SetLDO2(true);
+    M5.Display.wakeup();
     applyBrightness();
     screenOff = false;
     wakeTransitionUntil = millis() + 12000;
@@ -109,7 +146,7 @@ static void wake() {
 bool     responseSent = false;
 
 static void beep(uint16_t freq, uint16_t dur) {
-  if (settings().sound) M5.Beep.tone(freq, dur);
+  if (settings().sound) M5.Speaker.tone(freq, dur);
 }
 
 static void sendCmd(const char* json) {
@@ -305,7 +342,7 @@ static void drawReset() {
 void menuConfirm() {
   switch (menuSel) {
     case 0: settingsOpen = true; menuOpen = false; settingsSel = 0; break;
-    case 1: M5.Axp.PowerOff(); break;
+    case 1: M5.Power.powerOff(); break;
     case 2:
     case 3:
       menuOpen = false;
@@ -356,9 +393,9 @@ static bool            _onUsb       = false;
 static void clockRefreshRtc() {
   if (millis() - _clkLastRead < 1000) return;
   _clkLastRead = millis();
-  _onUsb = M5.Axp.GetVBusVoltage() > 4.0f;
-  M5.Rtc.GetTime(&_clkTm);
-  M5.Rtc.GetDate(&_clkDt);
+  _onUsb = M5.Power.isCharging();
+  _rtcShimReadTime(&_clkTm);
+  _rtcShimReadDate(&_clkDt);
 }
 
 static void clockUpdateOrient() {
@@ -593,9 +630,9 @@ void drawInfo() {
   } else if (infoPage == 3) {
     _infoHeader(p, y, "DEVICE", infoPage);
 
-    int vBat_mV = (int)(M5.Axp.GetBatVoltage() * 1000);
-    int iBat_mA = (int)M5.Axp.GetBatCurrent();
-    int vBus_mV = (int)(M5.Axp.GetVBusVoltage() * 1000);
+    int vBat_mV = M5.Power.getBatteryVoltage();
+    int iBat_mA = M5.Power.getBatteryCurrent();
+    int vBus_mV = M5.Power.isCharging() ? 5000 : 0;  // S3 has no VBUS ADC; fake a typical reading
     int pct = (vBat_mV - 3200) / 10;   // (v-3.2)/(4.2-3.2)*100 = (v-3.2)*100 = (mv-3200)/10
     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
     bool usb = vBus_mV > 4000;
@@ -627,7 +664,7 @@ void drawInfo() {
     ln("  heap     %uKB", ESP.getFreeHeap() / 1024);
     ln("  bright   %u/4", brightLevel);
     ln("  bt       %s", settings().bt ? (dataBtActive() ? "linked" : "on") : "off");
-    ln("  temp     %dC", (int)M5.Axp.GetTempInAXP192());
+    ln("  temp     %dC", (int)temperatureRead());  // ESP32 internal die temp
 
   } else if (infoPage == 4) {
     _infoHeader(p, y, "BLUETOOTH", infoPage);
@@ -936,13 +973,27 @@ void drawHUD() {
 }
 
 void setup() {
-  M5.begin();
+  Serial.begin(115200);
+  delay(200);
+  Serial.println("\n[diag] setup() entered");
+  auto cfg = M5.config();
+#if CONFIG_IDF_TARGET_ESP32S3
+  cfg.fallback_board = m5::board_t::board_M5StickS3;
+#endif
+  Serial.println("[diag] M5.begin...");
+  M5.begin(cfg);
+  Serial.printf("[diag] M5.begin OK; _board=%d, width=%d height=%d\n",
+                (int)M5.getBoard(), M5.Display.width(), M5.Display.height());
   M5.Lcd.setRotation(0);
-  M5.Imu.Init();
-  M5.Beep.begin();
+  Serial.println("[diag] rotation set");
+  // M5Unified initializes IMU + Speaker automatically inside M5.begin().
+  Serial.println("[diag] calling startBt...");
   startBt();
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);   // off
+  Serial.println("[diag] startBt done");
+  if (LED_PIN >= 0) {
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, HIGH);   // off
+  }
   applyBrightness();
   lastInteractMs = millis();
   statsLoad();
@@ -987,7 +1038,6 @@ void setup() {
 
 void loop() {
   M5.update();
-  M5.Beep.update();
   t++;
   uint32_t now = millis();
 
@@ -1002,10 +1052,12 @@ void loop() {
   if ((int32_t)(now - oneShotUntil) >= 0) activeState = baseState;
 
   // LED: pulse on attention, otherwise off
-  if (activeState == P_ATTENTION && settings().led) {
-    digitalWrite(LED_PIN, (now / 400) % 2 ? LOW : HIGH);
-  } else {
-    digitalWrite(LED_PIN, HIGH);
+  if (LED_PIN >= 0) {
+    if (activeState == P_ATTENTION && settings().led) {
+      digitalWrite(LED_PIN, (now / 400) % 2 ? LOW : HIGH);
+    } else {
+      digitalWrite(LED_PIN, HIGH);
+    }
   }
 
   // shake → dizzy + force scenario advance
@@ -1051,13 +1103,13 @@ void loop() {
     wake();
   }
 
-  // AXP power button (left side): short-press toggles screen off.
-  // Long-press (6s) still powers off the device via AXP hardware.
-  if (M5.Axp.GetBtnPress() == 0x02) {
+  // Power button (left side): short-press toggles screen off.
+  // On M5StickS3 long-press is handled by the M5PM1 PMU hardware.
+  if (M5.BtnPWR.wasClicked()) {
     if (screenOff) {
       wake();
     } else {
-      M5.Axp.SetLDO2(false);
+      M5.Display.sleep();
       screenOff = true;
     }
   }
@@ -1243,7 +1295,7 @@ void loop() {
   if (!napping && faceDownFrames >= 15) {
     napping = true;
     napStartMs = now;
-    M5.Axp.ScreenBreath(8);
+    M5.Display.setBrightness(20);  // dim, roughly old "ScreenBreath(8)"
     dimmed = true;
   } else if (napping && faceDownFrames <= -8) {
     napping = false;
@@ -1257,7 +1309,7 @@ void loop() {
   // No auto-off on USB power — clock face wants to stay visible while charging.
   if (!screenOff && !inPrompt && !_onUsb
       && millis() - lastInteractMs > SCREEN_OFF_MS) {
-    M5.Axp.SetLDO2(false);
+    M5.Display.sleep();
     screenOff = true;
   }
 
